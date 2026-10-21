@@ -262,7 +262,9 @@ function render(d) {
     var gramTxt = String(inv.grams).replace('.', ',');
     invHtml += '<div class="tx"><div class="mid"><div class="desc">Emas: '
       + esc(gramTxt) + ' gram</div><div class="sub">'
-      + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram (' + esc(inv.price_date) + ')'
+      + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram ('
+                   + (inv.price_source ? esc(inv.price_source) + ', ' : '')
+                   + esc(inv.price_date) + ')'
                    : 'Harga hari ini tidak tersedia')
       + '</div></div><span class="amt">'
       + (inv.value != null ? rupiah(inv.value) : '—') + '</span></div>';
@@ -288,7 +290,8 @@ function render(d) {
   } else {
     invHtml = '<div class="msg" style="padding:8px 0">Belum ada investasi.</div>';
     if (inv.price) {
-      invHtml += '<div class="sub" style="text-align:center">Harga emas hari ini: '
+      invHtml += '<div class="sub" style="text-align:center">Harga emas'
+        + (inv.price_source ? ' (' + esc(inv.price_source) + ')' : '') + ': '
         + rupiah(inv.price) + '/gram (' + esc(inv.price_date) + ')</div>';
     }
   }
