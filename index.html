@@ -25,18 +25,24 @@
   button:disabled { opacity: 0.4; }
   .nav-btn { background: var(--secondary); color: var(--text); }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .card { background: var(--card); border-radius: 10px; padding: 10px 12px; }
+  .card { background: var(--card); border: 1px solid rgba(128,128,128,0.35);
+    border-radius: 10px; padding: 10px 12px; }
+  .section { background: var(--card); border: 1px solid rgba(128,128,128,0.35);
+    border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .section h2:first-child { margin-top: 0; }
+  .section .tx:last-child { border-bottom: 0; }
   .card .label { font-size: 12px; color: var(--hint); }
   .card .value { font-size: 19px; font-weight: 700; margin-top: 2px; }
   .card .sub { font-size: 12px; color: var(--hint); }
   #insights { list-style: none; padding: 0; margin: 0; }
-  #insights li { padding: 6px 0; border-bottom: 1px solid var(--secondary); }
+  #insights li { padding: 6px 0; border-bottom: 1px solid rgba(128,128,128,0.35); }
+  #insights li:last-child { border-bottom: 0; }
   .cat-row { margin-bottom: 8px; }
   .cat-head { display: flex; justify-content: space-between; gap: 8px; }
-  .cat-bar { height: 8px; background: var(--secondary); border-radius: 4px; margin-top: 3px; }
+  .cat-bar { height: 8px; background: rgba(128,128,128,0.25); border-radius: 4px; margin-top: 3px; }
   .cat-fill { height: 8px; background: var(--accent); border-radius: 4px; }
   .tx { display: flex; gap: 8px; align-items: center; padding: 7px 0;
-    border-bottom: 1px solid var(--secondary); }
+    border-bottom: 1px solid rgba(128,128,128,0.35); }
   .code { background: var(--accent); color: #fff; border-radius: 6px;
     font-size: 12px; font-weight: 700; padding: 3px 6px; min-width: 34px; text-align: center; }
   .tx .mid { flex: 1; min-width: 0; }
@@ -45,7 +51,8 @@
   .amt { font-weight: 700; white-space: nowrap; }
   .msg { text-align: center; color: var(--hint); padding: 24px 8px; }
   .center { text-align: center; margin: 16px 0; }
-  details.tx-group { background: var(--card); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  details.tx-group { background: var(--bg); border: 1px solid rgba(128,128,128,0.35);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
   details.tx-group summary { font-weight: 700; cursor: pointer; list-style-position: inside; }
   .tx-list { max-height: 240px; overflow-y: auto; margin-top: 8px; padding-right: 4px; }
 </style>
@@ -76,25 +83,34 @@
     <div class="card"><div class="label">🧾 Transaksi</div><div class="value" id="kpiN">—</div></div>
   </div>
 
+  <div class="section">
   <h2>💰 Investasi</h2>
   <div id="investment"></div>
-  <div class="sub" style="color:var(--hint);font-size:12px">Posisi per hari ini, tidak mengikuti bulan/tahun yang dipilih.</div>
+  </div>
 
+  <div class="section">
   <h2>💡 Insight</h2>
   <ul id="insights"></ul>
   <div id="noInsight" class="msg" style="display:none;padding:8px 0">Belum ada insight bulan ini.</div>
+  </div>
 
+  <div class="section">
   <h2>📂 Kategori pengeluaran</h2>
   <div id="categories"></div>
   <div id="noCat" class="msg" style="display:none;padding:8px 0">Belum ada pengeluaran bulan ini.</div>
+  </div>
 
+  <div class="section">
   <h2 id="trendHeading">📈 Tren harian</h2>
   <svg id="trendSvg" viewBox="0 0 320 130" width="100%" style="display:block"></svg>
   <div class="sub" style="color:var(--hint);font-size:12px" id="trendAvg"></div>
+  </div>
 
+  <div class="section" id="txSection">
   <h2 id="txHeading">🧾 Daftar Transaksi</h2>
   <div id="txGroups"></div>
   <div id="noTx" class="msg" style="display:none;padding:8px 0">Belum ada transaksi bulan ini.</div>
+  </div>
 </div>
 
 <script>
@@ -226,6 +242,7 @@ function render(d) {
     isYear ? '📈 Tren bulanan' : '📈 Tren harian';
   document.getElementById('txHeading').style.display = isYear ? 'none' : 'block';
   document.getElementById('txGroups').style.display = isYear ? 'none' : 'block';
+  document.getElementById('txSection').style.display = isYear ? 'none' : 'block';
   document.getElementById('noTx').style.display = 'none';
 
   document.getElementById('kpiMasuk').textContent = rupiah(d.kpi.masuk);
