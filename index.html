@@ -55,6 +55,10 @@
     border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
   details.tx-group summary { font-weight: 700; cursor: pointer; list-style-position: inside; }
   .tx-list { max-height: 240px; overflow-y: auto; margin-top: 8px; padding-right: 4px; }
+  .pill { display: inline-block; color: #fff; border-radius: 20px;
+    padding: 6px 12px; font-weight: 700; margin-top: 6px; }
+  .pill.loss { background: #e53935; }
+  .pill.gain { background: #2e7d32; }
 </style>
 </head>
 <body>
@@ -262,6 +266,16 @@ function render(d) {
                    : 'Harga hari ini tidak tersedia')
       + '</div></div><span class="amt">'
       + (inv.value != null ? rupiah(inv.value) : '—') + '</span></div>';
+    if (inv.gain != null && inv.gain_pct != null) {
+      var pctTxt = Math.abs(inv.gain_pct).toLocaleString('id-ID',
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var arrow = inv.gain < 0 ? '↓' : '↑';
+      var sign = inv.gain < 0 ? '-' : '+';
+      var absGain = Math.abs(inv.gain);
+      var cls = inv.gain < 0 ? 'loss' : 'gain';
+      invHtml += '<div><span class="pill ' + cls + '">' + arrow + ' '
+        + sign + rupiah(absGain) + ' (' + sign + pctTxt + '%)</span></div>';
+    }
   }
   if (inv.other_net !== 0) {
     invHtml += '<div class="tx"><div class="mid"><div class="desc">Investasi lain</div>'
