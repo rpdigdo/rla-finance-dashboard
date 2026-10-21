@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Dashboard Keuangan</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --text: #222222; --hint: #999999;
+    --secondary: #f1f1f1; --accent: #2481cc; --card: #f8f8f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 12px; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif; font-size: 14px;
+  }
+  h2 { font-size: 15px; margin: 16px 0 8px; }
+  .header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .header span { flex: 1; text-align: center; font-weight: 700; font-size: 15px; }
+  button {
+    border: 0; border-radius: 8px; background: var(--accent); color: #fff;
+    padding: 8px 12px; font-size: 14px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.4; }
+  .nav-btn { background: var(--secondary); color: var(--text); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .card { background: var(--card); border-radius: 10px; padding: 10px 12px; }
+  .card .label { font-size: 12px; color: var(--hint); }
+  .card .value { font-size: 19px; font-weight: 700; margin-top: 2px; }
+  .card .sub { font-size: 12px; color: var(--hint); }
+  #insights { list-style: none; padding: 0; margin: 0; }
+  #insights li { padding: 6px 0; border-bottom: 1px solid var(--secondary); }
+  .cat-row { margin-bottom: 8px; }
+  .cat-head { display: flex; justify-content: space-between; gap: 8px; }
+  .cat-bar { height: 8px; background: var(--secondary); border-radius: 4px; margin-top: 3px; }
+  .cat-fill { height: 8px; background: var(--accent); border-radius: 4px; }
+  .tx { display: flex; gap: 8px; align-items: center; padding: 7px 0;
+    border-bottom: 1px solid var(--secondary); }
+  .code { background: var(--accent); color: #fff; border-radius: 6px;
+    font-size: 12px; font-weight: 700; padding: 3px 6px; min-width: 34px; text-align: center; }
+  .tx .mid { flex: 1; min-width: 0; }
+  .tx .desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx .sub { font-size: 12px; color: var(--hint); }
+  .amt { font-weight: 700; white-space: nowrap; }
+  .msg { text-align: center; color: var(--hint); padding: 24px 8px; }
+  .center { text-align: center; margin: 16px 0; }
+</style>
+</head>
+<body>
+<div class="header">
+  <button class="nav-btn" id="prevBtn">◀</button>
+  <span id="monthLabel">—</span>
+  <button class="nav-btn" id="nextBtn">▶</button>
+  <button id="refreshBtn" title="Refresh">🔄</button>
+</div>
+
+<div id="loading" class="msg">Memuat…</div>
+<div id="errorBox" class="msg" style="display:none">
+  <div id="errorText"></div>
+  <div class="center"><button id="retryBtn">Coba lagi</button></div>
+</div>
+
+<div id="dashboard" style="display:none">
+  <div class="grid">
+    <div class="card"><div class="label">💰 Pemasukan</div><div class="value" id="kpiMasuk">—</div></div>
+    <div class="card"><div class="label">💸 Pengeluaran</div><div class="value" id="kpiKeluar">—</div></div>
+    <div class="card"><div class="label">📊 Selisih</div><div class="value" id="kpiSelisih">—</div></div>
+    <div class="card"><div class="label">🧾 Transaksi</div><div class="value" id="kpiN">—</div></div>
+  </div>
+
+  <h2>💡 Insight</h2>
+  <ul id="insights"></ul>
+  <div id="noInsight" class="msg" style="display:none;padding:8px 0">Belum ada insight bulan ini.</div>
+
+  <h2>📂 Kategori pengeluaran</h2>
+  <div id="categories"></div>
+  <div id="noCat" class="msg" style="display:none;padding:8px 0">Belum ada pengeluaran bulan ini.</div>
+
+  <h2>📈 Tren 14 hari</h2>
+  <svg id="trendSvg" viewBox="0 0 320 130" width="100%" style="display:block"></svg>
+  <div class="sub" style="color:var(--hint);font-size:12px" id="trendAvg"></div>
+
+  <h2>🕒 Transaksi terakhir</h2>
+  <div id="recent"></div>
+  <div id="noTx" class="msg" style="display:none;padding:8px 0">Belum ada transaksi bulan ini.</div>
+</div>
+
+<script>
+var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+// Di GitHub Pages halaman ini jalan di level atas WebView Telegram, bukan
+// di iframe, jadi script Telegram di atas memberi initData langsung.
+// Hash (#tgWebAppData) tetap dibaca sebagai cadangan.
+function hashParams() {
+  var out = {};
+  var h = window.location.hash ? window.location.hash.substring(1) : '';
+  h.split('&').forEach(function (p) {
+    var eq = p.indexOf('=');
+    if (eq > 0) out[decodeURIComponent(p.substring(0, eq))] = decodeURIComponent(p.substring(eq + 1));
+  });
+  return out;
+}
+var hp = hashParams();
+var initData = (tg && tg.initData) ? tg.initData : (hp.tgWebAppData || '');
+// Diisi Bro setelah Workers deploy, sebelum push ke GitHub Pages.
+var API_URL = 'https://rla-finance-dashboard.rahmad-digdo.workers.dev/dashboard';
+var themeFromHash = null;
+try { themeFromHash = hp.tgWebAppThemeParams ? JSON.parse(hp.tgWebAppThemeParams) : null; } catch (e) {}
+var today = new Date();
+var selYear = today.getFullYear();
+var selMonth = today.getMonth() + 1;
+
+function applyTheme() {
+  var p = (tg && tg.themeParams) ? tg.themeParams : themeFromHash;
+  if (!p) return;
+  var root = document.documentElement.style;
+  if (p.bg_color) root.setProperty('--bg', p.bg_color);
+  if (p.text_color) root.setProperty('--text', p.text_color);
+  if (p.hint_color) root.setProperty('--hint', p.hint_color);
+  if (p.secondary_bg_color) root.setProperty('--secondary', p.secondary_bg_color);
+  if (p.button_color) root.setProperty('--accent', p.button_color);
+  if (p.section_bg_color) root.setProperty('--card', p.section_bg_color);
+}
+
+function rupiah(n) {
+  return 'Rp' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorBox').style.display = 'block';
+}
+function load() {
+  if (!initData) {
+    document.getElementById('loading').style.display = 'none';
+    showError('Dashboard ini hanya bisa dibuka lewat Telegram oleh owner.');
+    return;
+  }
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ initData: initData, year: selYear, month: selMonth })
+  }).then(function (r) { return r.json(); }).then(render).catch(function () {
+    showError('Gagal memuat data. Periksa koneksi, lalu coba lagi.');
+  });
+}
+
+function drawTrend(labels, values, avg) {
+  var svg = document.getElementById('trendSvg');
+  var max = 0;
+  for (var i = 0; i < values.length; i++) if (values[i] > max) max = values[i];
+  if (avg > max) max = avg;
+  if (max <= 0) max = 1;
+  function y(v) { return 110 - (v / max) * 90; }
+  function x(i) { return 8 + i * (304 / 13); }
+  var pts = [];
+  for (var i = 0; i < values.length; i++) pts.push(x(i).toFixed(1) + ',' + y(values[i]).toFixed(1));
+  var avgY = y(avg).toFixed(1);
+  var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2481cc';
+  var hint = getComputedStyle(document.documentElement).getPropertyValue('--hint').trim() || '#999999';
+  var html = '<line x1="8" y1="' + avgY + '" x2="312" y2="' + avgY +
+    '" stroke="' + hint + '" stroke-dasharray="4 3" stroke-width="1"/>' +
+    '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + accent +
+    '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  for (var i = 0; i < values.length; i += 6) {
+    html += '<text x="' + x(i).toFixed(1) + '" y="126" font-size="9" fill="' + hint +
+      '" text-anchor="middle">' + esc(labels[i]) + '</text>';
+  }
+  svg.innerHTML = html;
+}
+
+function render(d) {
+  if (!d || !d.ok) {
+    if (d && d.error === 'unauthorized') {
+      showError('Akses ditolak. Dashboard ini hanya bisa dibuka lewat Telegram oleh owner.');
+    } else {
+      showError('Gagal memuat data. Periksa koneksi, lalu coba lagi.');
+    }
+    return;
+  }
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('monthLabel').textContent = d.month.label;
+  var isCurrent = (d.month.year === today.getFullYear() && d.month.month === today.getMonth() + 1);
+  document.getElementById('nextBtn').disabled = isCurrent;
+
+  document.getElementById('kpiMasuk').textContent = rupiah(d.kpi.masuk);
+  document.getElementById('kpiKeluar').textContent = rupiah(d.kpi.keluar);
+  document.getElementById('kpiSelisih').textContent = rupiah(d.kpi.selisih);
+  document.getElementById('kpiN').textContent = d.kpi.n + ' transaksi';
+
+  var ins = document.getElementById('insights');
+  ins.innerHTML = '';
+  d.insights.forEach(function (s) {
+    var li = document.createElement('li');
+    li.textContent = s;
+    ins.appendChild(li);
+  });
+  document.getElementById('noInsight').style.display = d.insights.length ? 'none' : 'block';
+
+  var cats = document.getElementById('categories');
+  cats.innerHTML = '';
+  d.categories.forEach(function (c) {
+    var row = document.createElement('div');
+    row.className = 'cat-row';
+    row.innerHTML = '<div class="cat-head"><span>' + esc(c.name) + '</span><span>' +
+      rupiah(c.amount) + ' • ' + Math.round(c.pct * 100) + '%</span></div>' +
+      '<div class="cat-bar"><div class="cat-fill" style="width:' + (c.pct * 100).toFixed(1) + '%"></div></div>';
+    cats.appendChild(row);
+  });
+  document.getElementById('noCat').style.display = d.categories.length ? 'none' : 'block';
+
+  drawTrend(d.trend.labels, d.trend.values, d.trend.avg);
+  document.getElementById('trendAvg').textContent = 'Rata-rata: ' + rupiah(d.trend.avg) + '/hari';
+
+  var rec = document.getElementById('recent');
+  rec.innerHTML = '';
+  d.recent.forEach(function (t) {
+    var sign = t.type === 'Pemasukan' ? '+' : '-';
+    var row = document.createElement('div');
+    row.className = 'tx';
+    row.innerHTML = '<span class="code">' + esc(t.code) + '</span><div class="mid">' +
+      '<div class="desc">' + esc(t.desc || t.cat) + '</div>' +
+      '<div class="sub">' + esc(t.date) + ' • ' + esc(t.cat) + '</div></div>' +
+      '<span class="amt">' + sign + rupiah(t.amount) + '</span>';
+    rec.appendChild(row);
+  });
+  document.getElementById('noTx').style.display = d.recent.length ? 'none' : 'block';
+}
+
+function shiftMonth(delta) {
+  selMonth += delta;
+  if (selMonth < 1) { selMonth = 12; selYear--; }
+  if (selMonth > 12) { selMonth = 1; selYear++; }
+  load();
+}
+
+document.getElementById('prevBtn').addEventListener('click', function () { shiftMonth(-1); });
+document.getElementById('nextBtn').addEventListener('click', function () { shiftMonth(1); });
+document.getElementById('refreshBtn').addEventListener('click', load);
+document.getElementById('retryBtn').addEventListener('click', load);
+
+applyTheme();
+if (tg) { tg.ready(); tg.expand(); }
+load();
+</script>
+</body>
+</html>
