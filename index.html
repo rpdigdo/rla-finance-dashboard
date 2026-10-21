@@ -45,6 +45,9 @@
   .amt { font-weight: 700; white-space: nowrap; }
   .msg { text-align: center; color: var(--hint); padding: 24px 8px; }
   .center { text-align: center; margin: 16px 0; }
+  details.tx-group { background: var(--card); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  details.tx-group summary { font-weight: 700; cursor: pointer; list-style-position: inside; }
+  .tx-list { max-height: 240px; overflow-y: auto; margin-top: 8px; padding-right: 4px; }
 </style>
 </head>
 <body>
@@ -77,12 +80,12 @@
   <div id="categories"></div>
   <div id="noCat" class="msg" style="display:none;padding:8px 0">Belum ada pengeluaran bulan ini.</div>
 
-  <h2>📈 Tren 14 hari</h2>
+  <h2>📈 Tren 30 hari</h2>
   <svg id="trendSvg" viewBox="0 0 320 130" width="100%" style="display:block"></svg>
   <div class="sub" style="color:var(--hint);font-size:12px" id="trendAvg"></div>
 
-  <h2>🕒 Transaksi terakhir</h2>
-  <div id="recent"></div>
+  <h2>🧾 Daftar Transaksi</h2>
+  <div id="txGroups"></div>
   <div id="noTx" class="msg" style="display:none;padding:8px 0">Belum ada transaksi bulan ini.</div>
 </div>
 
@@ -159,7 +162,7 @@ function drawTrend(labels, values, avg) {
   if (avg > max) max = avg;
   if (max <= 0) max = 1;
   function y(v) { return 110 - (v / max) * 90; }
-  function x(i) { return 8 + i * (304 / 13); }
+  function x(i) { return 8 + i * (304 / (values.length - 1)); }
   var pts = [];
   for (var i = 0; i < values.length; i++) pts.push(x(i).toFixed(1) + ',' + y(values[i]).toFixed(1));
   var avgY = y(avg).toFixed(1);
@@ -169,7 +172,8 @@ function drawTrend(labels, values, avg) {
     '" stroke="' + hint + '" stroke-dasharray="4 3" stroke-width="1"/>' +
     '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + accent +
     '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
-  for (var i = 0; i < values.length; i += 6) {
+  var step = Math.ceil(labels.length / 5);
+  for (var i = 0; i < values.length; i += step) {
     html += '<text x="' + x(i).toFixed(1) + '" y="126" font-size="9" fill="' + hint +
       '" text-anchor="middle">' + esc(labels[i]) + '</text>';
   }
@@ -221,19 +225,50 @@ function render(d) {
   drawTrend(d.trend.labels, d.trend.values, d.trend.avg);
   document.getElementById('trendAvg').textContent = 'Rata-rata: ' + rupiah(d.trend.avg) + '/hari';
 
-  var rec = document.getElementById('recent');
-  rec.innerHTML = '';
-  d.recent.forEach(function (t) {
-    var sign = t.type === 'Pemasukan' ? '+' : '-';
-    var row = document.createElement('div');
-    row.className = 'tx';
-    row.innerHTML = '<span class="code">' + esc(t.code) + '</span><div class="mid">' +
-      '<div class="desc">' + esc(t.desc || t.cat) + '</div>' +
-      '<div class="sub">' + esc(t.date) + ' • ' + esc(t.cat) + '</div></div>' +
-      '<span class="amt">' + sign + rupiah(t.amount) + '</span>';
-    rec.appendChild(row);
+  var list = d.transactions || d.recent || [];
+  var groups = document.getElementById('txGroups');
+  groups.innerHTML = '';
+  // Pisahkan per aktor berdasarkan code, urutan: RPD dulu, lalu LA,
+  // lalu code lain bila ada. Kedua aktor utama selalu tampil, walau kosong.
+  var order = ['RPD', 'LA'];
+  var byCode = {};
+  list.forEach(function (t) {
+    (byCode[t.code] = byCode[t.code] || []).push(t);
   });
-  document.getElementById('noTx').style.display = d.recent.length ? 'none' : 'block';
+  var codes = order.concat(Object.keys(byCode).filter(function (c) {
+    return order.indexOf(c) < 0;
+  }));
+  codes.forEach(function (code) {
+    var items = byCode[code] || [];
+    var det = document.createElement('details');
+    det.className = 'tx-group';
+    det.open = true;
+    var sum = document.createElement('summary');
+    sum.textContent = code + ' • ' + items.length + ' transaksi';
+    det.appendChild(sum);
+    var box = document.createElement('div');
+    box.className = 'tx-list';
+    if (!items.length) {
+      var empty = document.createElement('div');
+      empty.className = 'msg';
+      empty.style.padding = '8px 0';
+      empty.textContent = 'Belum ada transaksi bulan ini.';
+      box.appendChild(empty);
+    }
+    items.forEach(function (t) {
+      var sign = t.type === 'Pemasukan' ? '+' : '-';
+      var row = document.createElement('div');
+      row.className = 'tx';
+      row.innerHTML = '<div class="mid">' +
+        '<div class="desc">' + esc(t.desc || t.cat) + '</div>' +
+        '<div class="sub">' + esc(t.date) + ' • ' + esc(t.cat) + '</div></div>' +
+        '<span class="amt">' + sign + rupiah(t.amount) + '</span>';
+      box.appendChild(row);
+    });
+    det.appendChild(box);
+    groups.appendChild(det);
+  });
+  document.getElementById('noTx').style.display = list.length ? 'none' : 'block';
 }
 
 function shiftMonth(delta) {
