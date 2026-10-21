@@ -24,7 +24,7 @@
   }
   button:disabled { opacity: 0.4; }
   .nav-btn { background: var(--secondary); color: var(--text); }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
   .card { background: var(--card); border: 1px solid rgba(128,128,128,0.35);
     border-radius: 10px; padding: 10px 12px; }
   .section { background: var(--card); border: 1px solid rgba(128,128,128,0.35);
@@ -256,7 +256,7 @@ function render(d) {
   var invHtml = '';
   if (inv.grams > 0) {
     var gramTxt = String(inv.grams).replace('.', ',');
-    invHtml += '<div class="tx"><div class="mid"><div class="desc">Emas Pegadaian: '
+    invHtml += '<div class="tx"><div class="mid"><div class="desc">Emas: '
       + esc(gramTxt) + ' gram</div><div class="sub">'
       + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram (' + esc(inv.price_date) + ')'
                    : 'Harga hari ini tidak tersedia')
