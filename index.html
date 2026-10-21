@@ -57,6 +57,10 @@
   <button class="nav-btn" id="nextBtn">▶</button>
   <button id="refreshBtn" title="Refresh">🔄</button>
 </div>
+<div class="center" style="margin:8px 0 4px">
+  <button class="nav-btn" id="periodMonthBtn">Bulan</button>
+  <button class="nav-btn" id="periodYearBtn">Tahun</button>
+</div>
 
 <div id="loading" class="msg">Memuat…</div>
 <div id="errorBox" class="msg" style="display:none">
@@ -80,11 +84,11 @@
   <div id="categories"></div>
   <div id="noCat" class="msg" style="display:none;padding:8px 0">Belum ada pengeluaran bulan ini.</div>
 
-  <h2>📈 Tren harian</h2>
+  <h2 id="trendHeading">📈 Tren harian</h2>
   <svg id="trendSvg" viewBox="0 0 320 130" width="100%" style="display:block"></svg>
   <div class="sub" style="color:var(--hint);font-size:12px" id="trendAvg"></div>
 
-  <h2>🧾 Daftar Transaksi</h2>
+  <h2 id="txHeading">🧾 Daftar Transaksi</h2>
   <div id="txGroups"></div>
   <div id="noTx" class="msg" style="display:none;padding:8px 0">Belum ada transaksi bulan ini.</div>
 </div>
@@ -112,6 +116,21 @@ try { themeFromHash = hp.tgWebAppThemeParams ? JSON.parse(hp.tgWebAppThemeParams
 var today = new Date();
 var selYear = today.getFullYear();
 var selMonth = today.getMonth() + 1;
+var period = 'month';
+
+function setPeriod(p) {
+  period = p;
+  var mb = document.getElementById('periodMonthBtn');
+  var yb = document.getElementById('periodYearBtn');
+  var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2481cc';
+  var sec = getComputedStyle(document.documentElement).getPropertyValue('--secondary').trim() || '#f1f1f1';
+  var txt = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#222222';
+  mb.style.background = (p === 'month') ? accent : sec;
+  mb.style.color = (p === 'month') ? '#fff' : txt;
+  yb.style.background = (p === 'year') ? accent : sec;
+  yb.style.color = (p === 'year') ? '#fff' : txt;
+  load();
+}
 
 function applyTheme() {
   var p = (tg && tg.themeParams) ? tg.themeParams : themeFromHash;
@@ -149,7 +168,7 @@ function load() {
   fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ initData: initData, year: selYear, month: selMonth })
+    body: JSON.stringify({ initData: initData, year: selYear, month: selMonth, period: period })
   }).then(function (r) { return r.json(); }).then(render).catch(function () {
     showError('Gagal memuat data. Periksa koneksi, lalu coba lagi.');
   });
@@ -192,9 +211,18 @@ function render(d) {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('errorBox').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
-  document.getElementById('monthLabel').textContent = d.month.label;
-  var isCurrent = (d.month.year === today.getFullYear() && d.month.month === today.getMonth() + 1);
+  var isYear = (d.period === 'year');
+  document.getElementById('monthLabel').textContent =
+    isYear ? d.year.label : d.month.label;
+  var isCurrent = isYear
+    ? (d.year.year >= today.getFullYear())
+    : (d.month.year === today.getFullYear() && d.month.month === today.getMonth() + 1);
   document.getElementById('nextBtn').disabled = isCurrent;
+  document.getElementById('trendHeading').textContent =
+    isYear ? '📈 Tren bulanan' : '📈 Tren harian';
+  document.getElementById('txHeading').style.display = isYear ? 'none' : 'block';
+  document.getElementById('txGroups').style.display = isYear ? 'none' : 'block';
+  document.getElementById('noTx').style.display = 'none';
 
   document.getElementById('kpiMasuk').textContent = rupiah(d.kpi.masuk);
   document.getElementById('kpiKeluar').textContent = rupiah(d.kpi.keluar);
@@ -223,7 +251,8 @@ function render(d) {
   document.getElementById('noCat').style.display = d.categories.length ? 'none' : 'block';
 
   drawTrend(d.trend.labels, d.trend.values, d.trend.avg);
-  document.getElementById('trendAvg').textContent = 'Rata-rata: ' + rupiah(d.trend.avg) + '/hari';
+  document.getElementById('trendAvg').textContent = 'Rata-rata: ' + rupiah(d.trend.avg)
+    + (isYear ? '/bulan' : '/hari');
 
   var list = d.transactions || d.recent || [];
   var groups = document.getElementById('txGroups');
@@ -268,10 +297,16 @@ function render(d) {
     det.appendChild(box);
     groups.appendChild(det);
   });
-  document.getElementById('noTx').style.display = list.length ? 'none' : 'block';
+  document.getElementById('noTx').style.display =
+    (isYear || list.length) ? 'none' : 'block';
 }
 
 function shiftMonth(delta) {
+  if (period === 'year') {
+    selYear += delta;
+    load();
+    return;
+  }
   selMonth += delta;
   if (selMonth < 1) { selMonth = 12; selYear--; }
   if (selMonth > 12) { selMonth = 1; selYear++; }
@@ -282,10 +317,12 @@ document.getElementById('prevBtn').addEventListener('click', function () { shift
 document.getElementById('nextBtn').addEventListener('click', function () { shiftMonth(1); });
 document.getElementById('refreshBtn').addEventListener('click', load);
 document.getElementById('retryBtn').addEventListener('click', load);
+document.getElementById('periodMonthBtn').addEventListener('click', function () { setPeriod('month'); });
+document.getElementById('periodYearBtn').addEventListener('click', function () { setPeriod('year'); });
 
 applyTheme();
 if (tg) { tg.ready(); tg.expand(); }
-load();
+setPeriod('month');
 </script>
 </body>
 </html>
