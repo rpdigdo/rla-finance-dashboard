@@ -59,6 +59,15 @@
     padding: 6px 12px; font-weight: 700; margin-top: 6px; }
   .pill.loss { background: #e53935; }
   .pill.gain { background: #2e7d32; }
+  .spinner { width: 36px; height: 36px; margin: 0 auto 10px;
+    border: 4px solid rgba(128,128,128,0.25); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .load-bar { height: 8px; background: rgba(128,128,128,0.25); border-radius: 4px;
+    margin: 10px auto 0; max-width: 220px; overflow: hidden; }
+  .load-fill { height: 8px; background: var(--accent); border-radius: 4px;
+    width: 0%; transition: width 0.15s; }
+  .load-pct { font-weight: 700; font-size: 16px; margin-top: 8px; color: var(--text); }
 </style>
 </head>
 <body>
@@ -73,7 +82,12 @@
   <button class="nav-btn" id="periodYearBtn">Tahun</button>
 </div>
 
-<div id="loading" class="msg">Memuat…</div>
+<div id="loading" class="msg">
+  <div class="spinner"></div>
+  <div>Memuat data…</div>
+  <div class="load-bar"><div class="load-fill" id="loadFill"></div></div>
+  <div class="load-pct" id="loadPct">0%</div>
+</div>
 <div id="errorBox" class="msg" style="display:none">
   <div id="errorText"></div>
   <div class="center"><button id="retryBtn">Coba lagi</button></div>
@@ -180,20 +194,86 @@ function showError(msg) {
   document.getElementById('errorText').textContent = msg;
   document.getElementById('errorBox').style.display = 'block';
 }
+function setLoadPct(p) {
+  var pct = Math.max(0, Math.min(100, Math.floor(p)));
+  var fill = document.getElementById('loadFill');
+  var txt = document.getElementById('loadPct');
+  if (fill) fill.style.width = pct + '%';
+  if (txt) txt.textContent = pct + '%';
+}
+// Nomor urut load: bila Boss menekan ◀ ▶ 🔄 saat load lama masih
+// berjalan, hasil load lama diabaikan supaya persen dan tampilannya
+// tidak tertukar dengan load terbaru.
+var loadSeq = 0;
 function load() {
   if (!initData) {
     document.getElementById('loading').style.display = 'none';
     showError('Dashboard ini hanya bisa dibuka lewat Telegram oleh owner.');
     return;
   }
+  var seq = ++loadSeq;
   document.getElementById('errorBox').style.display = 'none';
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('loading').style.display = 'block';
+  setLoadPct(0);
+  // Timer estimasi, hanya dipakai bila total byte tidak diketahui.
+  var estTimer = null;
+  function stopEst() { if (estTimer) { clearInterval(estTimer); estTimer = null; } }
   fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ initData: initData, year: selYear, month: selMonth, period: period })
-  }).then(function (r) { return r.json(); }).then(render).catch(function () {
+  }).then(function (r) {
+    if (seq !== loadSeq) return null;
+    var total = Number(r.headers.get('Content-Length'));
+    if (!r.body || !r.body.getReader || !(total > 0)) {
+      // Fallback: total tidak diketahui (chunked / browser lama).
+      // Persen naik halus menuju 90% sambil menunggu, lalu 100%
+      // saat data tiba. Ini estimasi, bukan hitungan byte.
+      var est = 0;
+      estTimer = setInterval(function () {
+        if (seq !== loadSeq) { stopEst(); return; }
+        est += (90 - est) * 0.08;
+        setLoadPct(est);
+      }, 100);
+      return r.text().then(function (t) {
+        stopEst();
+        if (seq !== loadSeq) return null;
+        setLoadPct(100);
+        return JSON.parse(t);
+      });
+    }
+    // Jalur utama: persen = byte yang sudah diterima / total byte
+    // dari header Content-Length Workers (terverifikasi dikirim).
+    // Sebagian besar waktu load adalah menunggu server, bukan
+    // mengunduh, jadi persen bisa lama di angka kecil lalu melonjak
+    // ke 100% saat balasan tiba — itu wajar, bukan macet.
+    var reader = r.body.getReader();
+    var chunks = [];
+    var received = 0;
+    function pump() {
+      return reader.read().then(function (res) {
+        if (res.done) {
+          var full = new Uint8Array(received);
+          var off = 0;
+          chunks.forEach(function (c) { full.set(c, off); off += c.length; });
+          setLoadPct(100);
+          return JSON.parse(new TextDecoder().decode(full));
+        }
+        if (seq !== loadSeq) { try { reader.cancel(); } catch (e) {} return null; }
+        chunks.push(res.value);
+        received += res.value.length;
+        setLoadPct(received / total * 100);
+        return pump();
+      });
+    }
+    return pump();
+  }).then(function (d) {
+    if (d === null || seq !== loadSeq) return;
+    render(d);
+  }).catch(function () {
+    stopEst();
+    if (seq !== loadSeq) return;
     showError('Gagal memuat data. Periksa koneksi, lalu coba lagi.');
   });
 }
