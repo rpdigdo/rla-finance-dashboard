@@ -76,6 +76,10 @@
     <div class="card"><div class="label">🧾 Transaksi</div><div class="value" id="kpiN">—</div></div>
   </div>
 
+  <h2>💰 Investasi</h2>
+  <div id="investment"></div>
+  <div class="sub" style="color:var(--hint);font-size:12px">Posisi per hari ini, tidak mengikuti bulan/tahun yang dipilih.</div>
+
   <h2>💡 Insight</h2>
   <ul id="insights"></ul>
   <div id="noInsight" class="msg" style="display:none;padding:8px 0">Belum ada insight bulan ini.</div>
@@ -228,6 +232,36 @@ function render(d) {
   document.getElementById('kpiKeluar').textContent = rupiah(d.kpi.keluar);
   document.getElementById('kpiSelisih').textContent = rupiah(d.kpi.selisih);
   document.getElementById('kpiN').textContent = d.kpi.n + ' transaksi';
+
+  // Investasi (sederhana, selalu current): emas + investasi lain + total.
+  var inv = d.investment || { grams: 0, other_net: 0, price: null, value: null, total: 0 };
+  var invEl = document.getElementById('investment');
+  var invHtml = '';
+  if (inv.grams > 0) {
+    var gramTxt = String(inv.grams).replace('.', ',');
+    invHtml += '<div class="tx"><div class="mid"><div class="desc">Emas Pegadaian: '
+      + esc(gramTxt) + ' gram</div><div class="sub">'
+      + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram (' + esc(inv.price_date) + ')'
+                   : 'Harga hari ini tidak tersedia')
+      + '</div></div><span class="amt">'
+      + (inv.value != null ? rupiah(inv.value) : '—') + '</span></div>';
+  }
+  if (inv.other_net !== 0) {
+    invHtml += '<div class="tx"><div class="mid"><div class="desc">Investasi lain</div>'
+      + '<div class="sub">Modal bersih (beli - jual)</div></div>'
+      + '<span class="amt">' + rupiah(inv.other_net) + '</span></div>';
+  }
+  if (inv.grams > 0 || inv.other_net !== 0) {
+    invHtml += '<div class="tx"><div class="mid"><div class="desc"><b>Total investasi</b></div></div>'
+      + '<span class="amt"><b>' + rupiah(inv.total) + '</b></span></div>';
+  } else {
+    invHtml = '<div class="msg" style="padding:8px 0">Belum ada investasi.</div>';
+    if (inv.price) {
+      invHtml += '<div class="sub" style="text-align:center">Harga emas hari ini: '
+        + rupiah(inv.price) + '/gram (' + esc(inv.price_date) + ')</div>';
+    }
+  }
+  invEl.innerHTML = invHtml;
 
   var ins = document.getElementById('insights');
   ins.innerHTML = '';
