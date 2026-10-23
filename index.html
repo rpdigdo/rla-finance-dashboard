@@ -107,6 +107,11 @@
   </div>
 
   <div class="section">
+  <h2>💳 Utang</h2>
+  <div id="debt"></div>
+  </div>
+
+  <div class="section">
   <h2>💡 Insight</h2>
   <ul id="insights"></ul>
   <div id="noInsight" class="msg" style="display:none;padding:8px 0">Belum ada insight bulan ini.</div>
@@ -377,6 +382,23 @@ function render(d) {
   }
   invEl.innerHTML = invHtml;
 
+  // Utang (Boss 2026-10-23): selalu tampil, walau Rp0 — tidak pernah
+  // disembunyikan di angka 0. Dari balasan POST /dashboard yang sama
+  // (tidak ada fetch terpisah). Fallback 0 bila Worker lama belum
+  // mengirim debt, supaya box tidak kosong/rusak saat transisi.
+  var dbt = d.debt || { rpd: 0, la: 0, keluarga: 0 };
+  function debtRupiah(n) {
+    if (n < 0) return '-Rp' + String(Math.round(-n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return rupiah(n);
+  }
+  document.getElementById('debt').innerHTML =
+    '<div class="tx"><div class="mid"><div class="desc">RPD</div></div>' +
+    '<span class="amt">' + debtRupiah(dbt.rpd) + '</span></div>' +
+    '<div class="tx"><div class="mid"><div class="desc">LA</div></div>' +
+    '<span class="amt">' + debtRupiah(dbt.la) + '</span></div>' +
+    '<div class="tx"><div class="mid"><div class="desc"><b>Keluarga</b></div></div>' +
+    '<span class="amt"><b>' + debtRupiah(dbt.keluarga) + '</b></span></div>';
+
   var ins = document.getElementById('insights');
   ins.innerHTML = '';
   d.insights.forEach(function (s) {
@@ -433,7 +455,9 @@ function render(d) {
       box.appendChild(empty);
     }
     items.forEach(function (t) {
-      var sign = t.type === 'Pemasukan' ? '+' : '-';
+      // Berutang (Type Utang) bukan pemasukan maupun pengeluaran:
+      // tanpa tanda +/-, hanya nominal + kategori Utang.
+      var sign = t.type === 'Pemasukan' ? '+' : (t.type === 'Utang' ? '' : '-');
       var row = document.createElement('div');
       row.className = 'tx';
       row.innerHTML = '<div class="mid">' +
