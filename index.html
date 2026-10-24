@@ -54,6 +54,9 @@
   details.tx-group { background: var(--bg); border: 1px solid rgba(128,128,128,0.35);
     border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
   details.tx-group summary { font-weight: 700; cursor: pointer; list-style-position: inside; }
+  /* Boss 2026-10-24: box Investasi & Utang collapsible, default tertutup. */
+  details.collapse-box summary { font-size: 15px; font-weight: 700; cursor: pointer; list-style-position: inside; }
+  details.collapse-box > div { margin-top: 8px; }
   .tx-list { max-height: 240px; overflow-y: auto; margin-top: 8px; padding-right: 4px; }
   .pill { display: inline-block; color: #fff; border-radius: 20px;
     padding: 6px 12px; font-weight: 700; margin-top: 6px; }
@@ -102,13 +105,17 @@
   </div>
 
   <div class="section">
-  <h2>💰 Investasi</h2>
+  <details class="collapse-box" id="investmentBox">
+  <summary>💰 Investasi</summary>
   <div id="investment"></div>
+  </details>
   </div>
 
   <div class="section">
-  <h2>💳 Utang</h2>
+  <details class="collapse-box" id="debtBox">
+  <summary>💳 Utang</summary>
   <div id="debt"></div>
+  </details>
   </div>
 
   <div class="section">
@@ -382,8 +389,10 @@ function render(d) {
   }
   invEl.innerHTML = invHtml;
 
-  // Utang (Boss 2026-10-23): selalu tampil, walau Rp0 — tidak pernah
-  // disembunyikan di angka 0. Dari balasan POST /dashboard yang sama
+  // Utang (Boss 2026-10-23, collapsible default tertutup 2026-10-24):
+  // header box selalu tampil, isi disembunyikan sampai diketuk —
+  // total tetap dirender walau Rp0, tidak pernah dikosongkan di angka 0.
+  // Dari balasan POST /dashboard yang sama
   // (tidak ada fetch terpisah). Fallback 0 bila Worker lama belum
   // mengirim debt, supaya box tidak kosong/rusak saat transisi.
   var dbt = d.debt || { rpd: 0, la: 0, keluarga: 0 };
