@@ -350,25 +350,67 @@ function render(d) {
   var inv = d.investment || { grams: 0, other_net: 0, price: null, value: null, total: 0 };
   var invEl = document.getElementById('investment');
   var invHtml = '';
+  // Emas per-user 2026-10-24 (Boss ACC): pill untung/rugi per user,
+  // format sama seperti pill total lama. LA 0 gram (gain_pct null)
+  // otomatis tanpa pill.
+  function goldPill(gain, gainPct) {
+    if (gain == null || gainPct == null) return '';
+    var pctTxt = Math.abs(gainPct).toLocaleString('id-ID',
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    var arrow = gain < 0 ? '↓' : '↑';
+    var sign = gain < 0 ? '-' : '+';
+    var cls = gain < 0 ? 'loss' : 'gain';
+    return '<div><span class="pill ' + cls + '">' + arrow + ' '
+      + sign + rupiah(Math.abs(gain)) + ' (' + sign + pctTxt + '%)</span></div>';
+  }
+  function goldRow(label, u, bold) {
+    var gramTxt = String(u.grams).replace('.', ',');
+    var desc = bold ? '<b>' + label + ': ' + esc(gramTxt) + ' gram</b>'
+      : label + ': ' + esc(gramTxt) + ' gram';
+    var amt = bold ? '<b>' + (u.value != null ? rupiah(u.value) : '—') + '</b>'
+      : (u.value != null ? rupiah(u.value) : '—');
+    return '<div class="tx"><div class="mid"><div class="desc">' + desc
+      + '</div></div><span class="amt">' + amt + '</span></div>'
+      + goldPill(u.gain, u.gain_pct);
+  }
   if (inv.grams > 0) {
-    var gramTxt = String(inv.grams).replace('.', ',');
-    invHtml += '<div class="tx"><div class="mid"><div class="desc">Emas: '
-      + esc(gramTxt) + ' gram</div><div class="sub">'
-      + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram ('
-                   + (inv.price_source ? esc(inv.price_source) + ', ' : '')
-                   + esc(inv.price_date) + ')'
-                   : 'Harga hari ini tidak tersedia')
-      + '</div></div><span class="amt">'
-      + (inv.value != null ? rupiah(inv.value) : '—') + '</span></div>';
-    if (inv.gain != null && inv.gain_pct != null) {
-      var pctTxt = Math.abs(inv.gain_pct).toLocaleString('id-ID',
-        { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      var arrow = inv.gain < 0 ? '↓' : '↑';
-      var sign = inv.gain < 0 ? '-' : '+';
-      var absGain = Math.abs(inv.gain);
-      var cls = inv.gain < 0 ? 'loss' : 'gain';
-      invHtml += '<div><span class="pill ' + cls + '">' + arrow + ' '
-        + sign + rupiah(absGain) + ' (' + sign + pctTxt + '%)</span></div>';
+    if (inv.gold_users) {
+      // Per-user: satu baris harga sekali, lalu RPD / LA / Total.
+      invHtml += '<div class="sub">'
+        + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram ('
+                     + (inv.price_source ? esc(inv.price_source) + ', ' : '')
+                     + esc(inv.price_date) + ')'
+                     : 'Harga hari ini tidak tersedia')
+        + '</div>';
+      var gu = inv.gold_users;
+      var uR = gu.rpd || { grams: 0, value: null, gain: null, gain_pct: null };
+      var uL = gu.la || { grams: 0, value: null, gain: null, gain_pct: null };
+      var uT = gu.keluarga || { grams: inv.grams, value: inv.value, gain: inv.gain, gain_pct: inv.gain_pct };
+      invHtml += goldRow('RPD', uR, false);
+      invHtml += goldRow('LA', uL, false);
+      invHtml += goldRow('Total', uT, true);
+    } else {
+      // Fallback Worker lama (tanpa gold_users): PERSIS tampilan
+      // Emas tunggal + pill lama, tidak diubah, tidak dihapus.
+      var gramTxt = String(inv.grams).replace('.', ',');
+      invHtml += '<div class="tx"><div class="mid"><div class="desc">Emas: '
+        + esc(gramTxt) + ' gram</div><div class="sub">'
+        + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram ('
+                     + (inv.price_source ? esc(inv.price_source) + ', ' : '')
+                     + esc(inv.price_date) + ')'
+                     : 'Harga hari ini tidak tersedia')
+        + '</div></div><span class="amt">'
+        + (inv.value != null ? rupiah(inv.value) : '—') + '</span></div>';
+      if (inv.gain != null && inv.gain_pct != null) {
+        var pctTxt = Math.abs(inv.gain_pct).toLocaleString('id-ID',
+          { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        var arrow = inv.gain < 0 ? '↓' : '↑';
+        var sign = inv.gain < 0 ? '-' : '+';
+        var absGain = Math.abs(inv.gain);
+        var cls = inv.gain < 0 ? 'loss' : 'gain';
+        invHtml += '<div><span class="pill ' + cls + '">' + arrow + ' '
+          + sign + rupiah(absGain) + ' (' + sign + pctTxt + '%)</span></div>';
+      }
     }
   }
   if (inv.other_net !== 0) {
