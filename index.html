@@ -492,7 +492,7 @@ function render(d) {
     var items = byCode[code] || [];
     var det = document.createElement('details');
     det.className = 'tx-group';
-    det.open = true;
+    det.open = false;
     var sum = document.createElement('summary');
     sum.textContent = code + ' • ' + items.length + ' transaksi';
     det.appendChild(sum);
