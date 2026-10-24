@@ -160,7 +160,7 @@ function hashParams() {
 var hp = hashParams();
 var initData = (tg && tg.initData) ? tg.initData : (hp.tgWebAppData || '');
 // Diisi Bro setelah Workers deploy, sebelum push ke GitHub Pages.
-var API_URL = 'https://rla-finance-dashboard.rahmad-digdo.workers.dev/dashboard';
+var API_URL = 'https://rla-finance-dashboard-vercel-test.vercel.app/api/dashboard';
 var themeFromHash = null;
 try { themeFromHash = hp.tgWebAppThemeParams ? JSON.parse(hp.tgWebAppThemeParams) : null; } catch (e) {}
 var today = new Date();
