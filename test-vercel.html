@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Dashboard Keuangan (TEST Vercel)</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --text: #222222; --hint: #999999;
+    --secondary: #f1f1f1; --accent: #2481cc; --card: #f8f8f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 12px; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif; font-size: 14px;
+  }
+  h2 { font-size: 15px; margin: 16px 0 8px; }
+  .header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .header span { flex: 1; text-align: center; font-weight: 700; font-size: 15px; }
+  button {
+    border: 0; border-radius: 8px; background: var(--accent); color: #fff;
+    padding: 8px 12px; font-size: 14px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.4; }
+  .nav-btn { background: var(--secondary); color: var(--text); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .card { background: var(--card); border: 1px solid rgba(128,128,128,0.35);
+    border-radius: 10px; padding: 10px 12px; }
+  .section { background: var(--card); border: 1px solid rgba(128,128,128,0.35);
+    border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .section h2:first-child { margin-top: 0; }
+  .section .tx:last-child { border-bottom: 0; }
+  .card .label { font-size: 12px; color: var(--hint); }
+  .card .value { font-size: 19px; font-weight: 700; margin-top: 2px; }
+  .card .sub { font-size: 12px; color: var(--hint); }
+  #insights { list-style: none; padding: 0; margin: 0; }
+  #insights li { padding: 6px 0; border-bottom: 1px solid rgba(128,128,128,0.35); }
+  #insights li:last-child { border-bottom: 0; }
+  .cat-row { margin-bottom: 8px; }
+  .cat-head { display: flex; justify-content: space-between; gap: 8px; }
+  .cat-bar { height: 8px; background: rgba(128,128,128,0.25); border-radius: 4px; margin-top: 3px; }
+  .cat-fill { height: 8px; background: var(--accent); border-radius: 4px; }
+  .tx { display: flex; gap: 8px; align-items: center; padding: 7px 0;
+    border-bottom: 1px solid rgba(128,128,128,0.35); }
+  .code { background: var(--accent); color: #fff; border-radius: 6px;
+    font-size: 12px; font-weight: 700; padding: 3px 6px; min-width: 34px; text-align: center; }
+  .tx .mid { flex: 1; min-width: 0; }
+  .tx .desc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx .sub { font-size: 12px; color: var(--hint); }
+  .amt { font-weight: 700; white-space: nowrap; }
+  .msg { text-align: center; color: var(--hint); padding: 24px 8px; }
+  .center { text-align: center; margin: 16px 0; }
+  details.tx-group { background: var(--bg); border: 1px solid rgba(128,128,128,0.35);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  details.tx-group summary { font-weight: 700; cursor: pointer; list-style-position: inside; }
+  /* Boss 2026-10-24: box Investasi & Utang collapsible, default tertutup. */
+  details.collapse-box summary { font-size: 15px; font-weight: 700; cursor: pointer; list-style-position: inside; }
+  details.collapse-box > div { margin-top: 8px; }
+  .tx-list { max-height: 240px; overflow-y: auto; margin-top: 8px; padding-right: 4px; }
+  .pill { display: inline-block; color: #fff; border-radius: 20px;
+    padding: 6px 12px; font-weight: 700; margin-top: 6px; }
+  .pill.loss { background: #e53935; }
+  .pill.gain { background: #2e7d32; }
+  .spinner { width: 36px; height: 36px; margin: 0 auto 10px;
+    border: 4px solid rgba(128,128,128,0.25); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .load-bar { height: 8px; background: rgba(128,128,128,0.25); border-radius: 4px;
+    margin: 10px auto 0; max-width: 220px; overflow: hidden; }
+  .load-fill { height: 8px; background: var(--accent); border-radius: 4px;
+    width: 0%; transition: width 0.15s; }
+  .load-pct { font-weight: 700; font-size: 16px; margin-top: 8px; color: var(--text); }
+</style>
+</head>
+<body>
+<div style="text-align:center;font-weight:700;background:#fff3cd;padding:8px;border-radius:8px;margin-bottom:8px;">🧪 TEST Vercel — bukan dashboard produksi, hanya tes baca data</div>
+<div class="header">
+  <button class="nav-btn" id="prevBtn">◀</button>
+  <span id="monthLabel">—</span>
+  <button class="nav-btn" id="nextBtn">▶</button>
+  <button id="refreshBtn" title="Refresh">🔄</button>
+</div>
+<div class="center" style="margin:8px 0 4px">
+  <button class="nav-btn" id="periodMonthBtn">Bulan</button>
+  <button class="nav-btn" id="periodYearBtn">Tahun</button>
+</div>
+
+<div id="loading" class="msg">
+  <div class="spinner"></div>
+  <div>Memuat data…</div>
+  <div class="load-bar"><div class="load-fill" id="loadFill"></div></div>
+  <div class="load-pct" id="loadPct">0%</div>
+</div>
+<div id="errorBox" class="msg" style="display:none">
+  <div id="errorText"></div>
+  <div class="center"><button id="retryBtn">Coba lagi</button></div>
+</div>
+
+<div id="dashboard" style="display:none">
+  <div class="grid">
+    <div class="card"><div class="label">💰 Pemasukan</div><div class="value" id="kpiMasuk">—</div></div>
+    <div class="card"><div class="label">💸 Pengeluaran</div><div class="value" id="kpiKeluar">—</div></div>
+    <div class="card"><div class="label">📊 Selisih</div><div class="value" id="kpiSelisih">—</div></div>
+    <div class="card"><div class="label">🧾 Transaksi</div><div class="value" id="kpiN">—</div></div>
+  </div>
+
+  <div class="section">
+  <details class="collapse-box" id="investmentBox">
+  <summary>💰 Investasi</summary>
+  <div id="investment"></div>
+  </details>
+  </div>
+
+  <div class="section">
+  <details class="collapse-box" id="debtBox">
+  <summary>💳 Utang</summary>
+  <div id="debt"></div>
+  </details>
+  </div>
+
+  <div class="section">
+  <h2>💡 Insight</h2>
+  <ul id="insights"></ul>
+  <div id="noInsight" class="msg" style="display:none;padding:8px 0">Belum ada insight bulan ini.</div>
+  </div>
+
+  <div class="section">
+  <h2>📂 Kategori pengeluaran</h2>
+  <div id="categories"></div>
+  <div id="noCat" class="msg" style="display:none;padding:8px 0">Belum ada pengeluaran bulan ini.</div>
+  </div>
+
+  <div class="section">
+  <h2 id="trendHeading">📈 Tren harian</h2>
+  <svg id="trendSvg" viewBox="0 0 320 130" width="100%" style="display:block"></svg>
+  <div class="sub" style="color:var(--hint);font-size:12px" id="trendAvg"></div>
+  </div>
+
+  <div class="section" id="txSection">
+  <h2 id="txHeading">🧾 Daftar Transaksi</h2>
+  <div id="txGroups"></div>
+  <div id="noTx" class="msg" style="display:none;padding:8px 0">Belum ada transaksi bulan ini.</div>
+  </div>
+</div>
+
+<script>
+var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+// Di GitHub Pages halaman ini jalan di level atas WebView Telegram, bukan
+// di iframe, jadi script Telegram di atas memberi initData langsung.
+// Hash (#tgWebAppData) tetap dibaca sebagai cadangan.
+function hashParams() {
+  var out = {};
+  var h = window.location.hash ? window.location.hash.substring(1) : '';
+  h.split('&').forEach(function (p) {
+    var eq = p.indexOf('=');
+    if (eq > 0) out[decodeURIComponent(p.substring(0, eq))] = decodeURIComponent(p.substring(eq + 1));
+  });
+  return out;
+}
+var hp = hashParams();
+var initData = (tg && tg.initData) ? tg.initData : (hp.tgWebAppData || '');
+// Diisi Bro setelah Workers deploy, sebelum push ke GitHub Pages.
+var API_URL = 'https://rla-finance-dashboard-vercel-test.vercel.app/api/dashboard';
+var themeFromHash = null;
+try { themeFromHash = hp.tgWebAppThemeParams ? JSON.parse(hp.tgWebAppThemeParams) : null; } catch (e) {}
+var today = new Date();
+var selYear = today.getFullYear();
+var selMonth = today.getMonth() + 1;
+var period = 'month';
+
+function setPeriod(p) {
+  period = p;
+  var mb = document.getElementById('periodMonthBtn');
+  var yb = document.getElementById('periodYearBtn');
+  var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2481cc';
+  var sec = getComputedStyle(document.documentElement).getPropertyValue('--secondary').trim() || '#f1f1f1';
+  var txt = getComputedStyle(document.documentElement).getPropertyValue('--text').trim() || '#222222';
+  mb.style.background = (p === 'month') ? accent : sec;
+  mb.style.color = (p === 'month') ? '#fff' : txt;
+  yb.style.background = (p === 'year') ? accent : sec;
+  yb.style.color = (p === 'year') ? '#fff' : txt;
+  load();
+}
+
+function applyTheme() {
+  var p = (tg && tg.themeParams) ? tg.themeParams : themeFromHash;
+  if (!p) return;
+  var root = document.documentElement.style;
+  if (p.bg_color) root.setProperty('--bg', p.bg_color);
+  if (p.text_color) root.setProperty('--text', p.text_color);
+  if (p.hint_color) root.setProperty('--hint', p.hint_color);
+  if (p.secondary_bg_color) root.setProperty('--secondary', p.secondary_bg_color);
+  if (p.button_color) root.setProperty('--accent', p.button_color);
+  if (p.section_bg_color) root.setProperty('--card', p.section_bg_color);
+}
+
+function rupiah(n) {
+  return 'Rp' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorBox').style.display = 'block';
+}
+function setLoadPct(p) {
+  var pct = Math.max(0, Math.min(100, Math.floor(p)));
+  var fill = document.getElementById('loadFill');
+  var txt = document.getElementById('loadPct');
+  if (fill) fill.style.width = pct + '%';
+  if (txt) txt.textContent = pct + '%';
+}
+// Nomor urut load: bila Boss menekan ◀ ▶ 🔄 saat load lama masih
+// berjalan, hasil load lama diabaikan supaya persen dan tampilannya
+// tidak tertukar dengan load terbaru.
+var loadSeq = 0;
+function load() {
+  if (!initData) {
+    document.getElementById('loading').style.display = 'none';
+    showError('Dashboard ini hanya bisa dibuka lewat Telegram oleh owner.');
+    return;
+  }
+  var seq = ++loadSeq;
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  setLoadPct(0);
+  // Timer estimasi, hanya dipakai bila total byte tidak diketahui.
+  var estTimer = null;
+  function stopEst() { if (estTimer) { clearInterval(estTimer); estTimer = null; } }
+  fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ initData: initData, year: selYear, month: selMonth, period: period })
+  }).then(function (r) {
+    if (seq !== loadSeq) return null;
+    var total = Number(r.headers.get('Content-Length'));
+    if (!r.body || !r.body.getReader || !(total > 0)) {
+      // Fallback: total tidak diketahui (chunked / browser lama).
+      // Persen naik halus menuju 90% sambil menunggu, lalu 100%
+      // saat data tiba. Ini estimasi, bukan hitungan byte.
+      var est = 0;
+      estTimer = setInterval(function () {
+        if (seq !== loadSeq) { stopEst(); return; }
+        est += (90 - est) * 0.08;
+        setLoadPct(est);
+      }, 100);
+      return r.text().then(function (t) {
+        stopEst();
+        if (seq !== loadSeq) return null;
+        setLoadPct(100);
+        return JSON.parse(t);
+      });
+    }
+    // Jalur utama: persen = byte yang sudah diterima / total byte
+    // dari header Content-Length Workers (terverifikasi dikirim).
+    // Sebagian besar waktu load adalah menunggu server, bukan
+    // mengunduh, jadi persen bisa lama di angka kecil lalu melonjak
+    // ke 100% saat balasan tiba — itu wajar, bukan macet.
+    var reader = r.body.getReader();
+    var chunks = [];
+    var received = 0;
+    function pump() {
+      return reader.read().then(function (res) {
+        if (res.done) {
+          var full = new Uint8Array(received);
+          var off = 0;
+          chunks.forEach(function (c) { full.set(c, off); off += c.length; });
+          setLoadPct(100);
+          return JSON.parse(new TextDecoder().decode(full));
+        }
+        if (seq !== loadSeq) { try { reader.cancel(); } catch (e) {} return null; }
+        chunks.push(res.value);
+        received += res.value.length;
+        setLoadPct(received / total * 100);
+        return pump();
+      });
+    }
+    return pump();
+  }).then(function (d) {
+    if (d === null || seq !== loadSeq) return;
+    render(d);
+  }).catch(function () {
+    stopEst();
+    if (seq !== loadSeq) return;
+    showError('Gagal memuat data. Periksa koneksi, lalu coba lagi.');
+  });
+}
+
+function drawTrend(labels, values, avg) {
+  var svg = document.getElementById('trendSvg');
+  var max = 0;
+  for (var i = 0; i < values.length; i++) if (values[i] > max) max = values[i];
+  if (avg > max) max = avg;
+  if (max <= 0) max = 1;
+  function y(v) { return 110 - (v / max) * 90; }
+  function x(i) { return 8 + i * (304 / (values.length - 1)); }
+  var pts = [];
+  for (var i = 0; i < values.length; i++) pts.push(x(i).toFixed(1) + ',' + y(values[i]).toFixed(1));
+  var avgY = y(avg).toFixed(1);
+  var accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2481cc';
+  var hint = getComputedStyle(document.documentElement).getPropertyValue('--hint').trim() || '#999999';
+  var html = '<line x1="8" y1="' + avgY + '" x2="312" y2="' + avgY +
+    '" stroke="' + hint + '" stroke-dasharray="4 3" stroke-width="1"/>' +
+    '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + accent +
+    '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  var step = Math.ceil(labels.length / 5);
+  for (var i = 0; i < values.length; i += step) {
+    html += '<text x="' + x(i).toFixed(1) + '" y="126" font-size="9" fill="' + hint +
+      '" text-anchor="middle">' + esc(labels[i]) + '</text>';
+  }
+  svg.innerHTML = html;
+}
+
+function render(d) {
+  if (!d || !d.ok) {
+    if (d && d.error === 'unauthorized') {
+      showError('Akses ditolak. Dashboard ini hanya bisa dibuka lewat Telegram oleh owner.');
+    } else {
+      showError('Gagal memuat data. Periksa koneksi, lalu coba lagi.');
+    }
+    return;
+  }
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  var isYear = (d.period === 'year');
+  document.getElementById('monthLabel').textContent =
+    isYear ? d.year.label : d.month.label;
+  var isCurrent = isYear
+    ? (d.year.year >= today.getFullYear())
+    : (d.month.year === today.getFullYear() && d.month.month === today.getMonth() + 1);
+  document.getElementById('nextBtn').disabled = isCurrent;
+  document.getElementById('trendHeading').textContent =
+    isYear ? '📈 Tren bulanan' : '📈 Tren harian';
+  document.getElementById('txHeading').style.display = isYear ? 'none' : 'block';
+  document.getElementById('txGroups').style.display = isYear ? 'none' : 'block';
+  document.getElementById('txSection').style.display = isYear ? 'none' : 'block';
+  document.getElementById('noTx').style.display = 'none';
+
+  document.getElementById('kpiMasuk').textContent = rupiah(d.kpi.masuk);
+  document.getElementById('kpiKeluar').textContent = rupiah(d.kpi.keluar);
+  document.getElementById('kpiSelisih').textContent = rupiah(d.kpi.selisih);
+  document.getElementById('kpiN').textContent = d.kpi.n + ' transaksi';
+
+  // Investasi (sederhana, selalu current): emas + investasi lain + total.
+  var inv = d.investment || { grams: 0, other_net: 0, price: null, value: null, total: 0 };
+  var invEl = document.getElementById('investment');
+  var invHtml = '';
+  // Emas per-user 2026-10-24 (Boss ACC): pill untung/rugi per user,
+  // format sama seperti pill total lama. LA 0 gram (gain_pct null)
+  // otomatis tanpa pill.
+  function goldPill(gain, gainPct) {
+    if (gain == null || gainPct == null) return '';
+    var pctTxt = Math.abs(gainPct).toLocaleString('id-ID',
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    var arrow = gain < 0 ? '↓' : '↑';
+    var sign = gain < 0 ? '-' : '+';
+    var cls = gain < 0 ? 'loss' : 'gain';
+    return '<div><span class="pill ' + cls + '">' + arrow + ' '
+      + sign + rupiah(Math.abs(gain)) + ' (' + sign + pctTxt + '%)</span></div>';
+  }
+  function goldRow(label, u, bold) {
+    var gramTxt = String(u.grams).replace('.', ',');
+    var desc = bold ? '<b>' + label + ': ' + esc(gramTxt) + ' gram</b>'
+      : label + ': ' + esc(gramTxt) + ' gram';
+    var amt = bold ? '<b>' + (u.value != null ? rupiah(u.value) : '—') + '</b>'
+      : (u.value != null ? rupiah(u.value) : '—');
+    return '<div class="tx"><div class="mid"><div class="desc">' + desc
+      + '</div></div><span class="amt">' + amt + '</span></div>'
+      + goldPill(u.gain, u.gain_pct);
+  }
+  if (inv.grams > 0) {
+    if (inv.gold_users) {
+      // Per-user: satu baris harga sekali, lalu RPD / LA / Total.
+      invHtml += '<div class="sub">'
+        + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram ('
+                     + (inv.price_source ? esc(inv.price_source) + ', ' : '')
+                     + esc(inv.price_date) + ')'
+                     : 'Harga hari ini tidak tersedia')
+        + '</div>';
+      var gu = inv.gold_users;
+      var uR = gu.rpd || { grams: 0, value: null, gain: null, gain_pct: null };
+      var uL = gu.la || { grams: 0, value: null, gain: null, gain_pct: null };
+      var uT = gu.keluarga || { grams: inv.grams, value: inv.value, gain: inv.gain, gain_pct: inv.gain_pct };
+      invHtml += goldRow('RPD', uR, false);
+      invHtml += goldRow('LA', uL, false);
+      invHtml += goldRow('Total', uT, true);
+    } else {
+      // Fallback Worker lama (tanpa gold_users): PERSIS tampilan
+      // Emas tunggal + pill lama, tidak diubah, tidak dihapus.
+      var gramTxt = String(inv.grams).replace('.', ',');
+      invHtml += '<div class="tx"><div class="mid"><div class="desc">Emas: '
+        + esc(gramTxt) + ' gram</div><div class="sub">'
+        + (inv.price ? 'Harga ' + rupiah(inv.price) + '/gram ('
+                     + (inv.price_source ? esc(inv.price_source) + ', ' : '')
+                     + esc(inv.price_date) + ')'
+                     : 'Harga hari ini tidak tersedia')
+        + '</div></div><span class="amt">'
+        + (inv.value != null ? rupiah(inv.value) : '—') + '</span></div>';
+      if (inv.gain != null && inv.gain_pct != null) {
+        var pctTxt = Math.abs(inv.gain_pct).toLocaleString('id-ID',
+          { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        var arrow = inv.gain < 0 ? '↓' : '↑';
+        var sign = inv.gain < 0 ? '-' : '+';
+        var absGain = Math.abs(inv.gain);
+        var cls = inv.gain < 0 ? 'loss' : 'gain';
+        invHtml += '<div><span class="pill ' + cls + '">' + arrow + ' '
+          + sign + rupiah(absGain) + ' (' + sign + pctTxt + '%)</span></div>';
+      }
+    }
+  }
+  if (inv.other_net !== 0) {
+    invHtml += '<div class="tx"><div class="mid"><div class="desc">Investasi lain</div>'
+      + '<div class="sub">Modal bersih (beli - jual)</div></div>'
+      + '<span class="amt">' + rupiah(inv.other_net) + '</span></div>';
+  }
+  if (inv.grams > 0 || inv.other_net !== 0) {
+    invHtml += '<div class="tx"><div class="mid"><div class="desc"><b>Total investasi</b></div></div>'
+      + '<span class="amt"><b>' + rupiah(inv.total) + '</b></span></div>';
+  } else {
+    invHtml = '<div class="msg" style="padding:8px 0">Belum ada investasi.</div>';
+    if (inv.price) {
+      invHtml += '<div class="sub" style="text-align:center">Harga emas'
+        + (inv.price_source ? ' (' + esc(inv.price_source) + ')' : '') + ': '
+        + rupiah(inv.price) + '/gram (' + esc(inv.price_date) + ')</div>';
+    }
+  }
+  invEl.innerHTML = invHtml;
+
+  // Utang (Boss 2026-10-23, collapsible default tertutup 2026-10-24):
+  // header box selalu tampil, isi disembunyikan sampai diketuk —
+  // total tetap dirender walau Rp0, tidak pernah dikosongkan di angka 0.
+  // Dari balasan POST /dashboard yang sama
+  // (tidak ada fetch terpisah). Fallback 0 bila Worker lama belum
+  // mengirim debt, supaya box tidak kosong/rusak saat transisi.
+  var dbt = d.debt || { rpd: 0, la: 0, keluarga: 0 };
+  function debtRupiah(n) {
+    if (n < 0) return '-Rp' + String(Math.round(-n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return rupiah(n);
+  }
+  document.getElementById('debt').innerHTML =
+    '<div class="tx"><div class="mid"><div class="desc">RPD</div></div>' +
+    '<span class="amt">' + debtRupiah(dbt.rpd) + '</span></div>' +
+    '<div class="tx"><div class="mid"><div class="desc">LA</div></div>' +
+    '<span class="amt">' + debtRupiah(dbt.la) + '</span></div>' +
+    '<div class="tx"><div class="mid"><div class="desc"><b>Total</b></div></div>' +
+    '<span class="amt"><b>' + debtRupiah(dbt.keluarga) + '</b></span></div>';
+
+  var ins = document.getElementById('insights');
+  ins.innerHTML = '';
+  d.insights.forEach(function (s) {
+    var li = document.createElement('li');
+    li.textContent = s;
+    ins.appendChild(li);
+  });
+  document.getElementById('noInsight').style.display = d.insights.length ? 'none' : 'block';
+
+  var cats = document.getElementById('categories');
+  cats.innerHTML = '';
+  d.categories.forEach(function (c) {
+    var row = document.createElement('div');
+    row.className = 'cat-row';
+    row.innerHTML = '<div class="cat-head"><span>' + esc(c.name) + '</span><span>' +
+      rupiah(c.amount) + ' • ' + Math.round(c.pct * 100) + '%</span></div>' +
+      '<div class="cat-bar"><div class="cat-fill" style="width:' + (c.pct * 100).toFixed(1) + '%"></div></div>';
+    cats.appendChild(row);
+  });
+  document.getElementById('noCat').style.display = d.categories.length ? 'none' : 'block';
+
+  drawTrend(d.trend.labels, d.trend.values, d.trend.avg);
+  document.getElementById('trendAvg').textContent = 'Rata-rata: ' + rupiah(d.trend.avg)
+    + (isYear ? '/bulan' : '/hari');
+
+  var list = d.transactions || d.recent || [];
+  var groups = document.getElementById('txGroups');
+  groups.innerHTML = '';
+  // Pisahkan per aktor berdasarkan code, urutan: RPD dulu, lalu LA,
+  // lalu code lain bila ada. Kedua aktor utama selalu tampil, walau kosong.
+  var order = ['RPD', 'LA'];
+  var byCode = {};
+  list.forEach(function (t) {
+    (byCode[t.code] = byCode[t.code] || []).push(t);
+  });
+  var codes = order.concat(Object.keys(byCode).filter(function (c) {
+    return order.indexOf(c) < 0;
+  }));
+  codes.forEach(function (code) {
+    var items = byCode[code] || [];
+    var det = document.createElement('details');
+    det.className = 'tx-group';
+    det.open = true;
+    var sum = document.createElement('summary');
+    sum.textContent = code + ' • ' + items.length + ' transaksi';
+    det.appendChild(sum);
+    var box = document.createElement('div');
+    box.className = 'tx-list';
+    if (!items.length) {
+      var empty = document.createElement('div');
+      empty.className = 'msg';
+      empty.style.padding = '8px 0';
+      empty.textContent = 'Belum ada transaksi bulan ini.';
+      box.appendChild(empty);
+    }
+    items.forEach(function (t) {
+      // Berutang (Type Utang) bukan pemasukan maupun pengeluaran:
+      // tanpa tanda +/-, hanya nominal + kategori Utang.
+      var sign = t.type === 'Pemasukan' ? '+' : (t.type === 'Utang' ? '' : '-');
+      var row = document.createElement('div');
+      row.className = 'tx';
+      row.innerHTML = '<div class="mid">' +
+        '<div class="desc">' + esc(t.desc || t.cat) + '</div>' +
+        '<div class="sub">' + esc(t.date) + ' • ' + esc(t.cat) + '</div></div>' +
+        '<span class="amt">' + sign + rupiah(t.amount) + '</span>';
+      box.appendChild(row);
+    });
+    det.appendChild(box);
+    groups.appendChild(det);
+  });
+  document.getElementById('noTx').style.display =
+    (isYear || list.length) ? 'none' : 'block';
+}
+
+function shiftMonth(delta) {
+  if (period === 'year') {
+    selYear += delta;
+    load();
+    return;
+  }
+  selMonth += delta;
+  if (selMonth < 1) { selMonth = 12; selYear--; }
+  if (selMonth > 12) { selMonth = 1; selYear++; }
+  load();
+}
+
+document.getElementById('prevBtn').addEventListener('click', function () { shiftMonth(-1); });
+document.getElementById('nextBtn').addEventListener('click', function () { shiftMonth(1); });
+document.getElementById('refreshBtn').addEventListener('click', load);
+document.getElementById('retryBtn').addEventListener('click', load);
+document.getElementById('periodMonthBtn').addEventListener('click', function () { setPeriod('month'); });
+document.getElementById('periodYearBtn').addEventListener('click', function () { setPeriod('year'); });
+
+applyTheme();
+if (tg) { tg.ready(); tg.expand(); }
+setPeriod('month');
+</script>
+</body>
+</html>
